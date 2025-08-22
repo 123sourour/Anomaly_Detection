@@ -13,15 +13,15 @@ from sklearn.metrics import confusion_matrix
 
 def load_dataset(dataset_name):
     if dataset_name == "Credit Card Transactions":
-        df = pd.read_csv("creditcard.csv")
-        df.rename(columns={'attack_detected': 'label'}, inplace=True)
+        dataset = pd.read_csv("card_transdata.csv")
+        df=dataset.rename(columns={'fraud': 'label'})
 
     elif dataset_name == "IoT Sensor Data":
-        df = pd.read_csv("IoT_Intrusion.csv")
-        df.rename(columns={'out/in': 'label'}, inplace=True)
+        dataset = pd.read_csv("Occupancy.csv")
+        df= dataset.rename(columns={'Occupancy': 'label'})
     else:
-        df = pd.read_csv("cybersecurity_intrusion_data.csv")
-        df.rename(columns={'attack_detected': 'label'}, inplace=True)
+        dataset = pd.read_csv("cybersecurity_intrusion_data.csv")
+        df= dataset.rename(columns={'attack_detected': 'label'})
     return df
 
 def data_overview_tab(df):
@@ -159,7 +159,9 @@ def display_results(predictions, true_labels, scores, algorithm_name, X):
     with col1:
         st.subheader("Anomaly Distribution")
         anomaly_counts = pd.Series(predictions).value_counts()
-        fig_pie = px.pie(values=anomaly_counts.values, names=['Normal', 'Anomaly'],
+        labels_map = {0: "Normal", 1: "Anomaly"}
+        names = [labels_map.get(k, k) for k in anomaly_counts.index]
+        fig_pie = px.pie(values=anomaly_counts.values, names=names,
                          title="Anomaly vs Normal Distribution")
         st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -227,7 +229,7 @@ def one_class_svm(X, X_scaled, y, nu, kernel, gamma):
 
     with st.spinner("Running One-Class SVM:"):
         st.write("**Processing Steps:**")
-        st.write("1_Initializing One-Class SVM model...")
+        st.write("1_Initializing One-Class SVM model")
         model = OneClassSVM(
             nu=nu,
             kernel=kernel,
@@ -282,13 +284,10 @@ tab1, tab2, tab3 = st.tabs(["Data Overview", "Anomaly Detection", "Exploratory A
 with tab1:
     data_overview_tab(df)
 with tab2:
-    st.header("{algorithm} Analysis")
+    st.header(f"{algorithm} Analysis")
 
     if st.button(f" Run {algorithm}"):
-        # Preprocess data
         X, X_scaled, y, scaler = preprocess_data(df)
-
-        # Run selected algorithm
         if algorithm == 'Isolation Forest':
             predictions, scores = isolation_forest(X, X_scaled, y, n_estimators,contamination)
         elif algorithm == 'Local Outlier Factor':
@@ -298,6 +297,7 @@ with tab2:
 
         st.subheader("Analysis Summary")
         total_anomalies = np.sum(predictions)
+        st.metric("Total Anomalies Detected", int(total_anomalies))
 
 with tab3:
             st.header("Exploratory Data Analysis")
