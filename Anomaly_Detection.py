@@ -130,7 +130,7 @@ def preprocess_data(df):
         X_scaled[numerical_cols] = scaler.fit_transform(X[numerical_cols])
 
         st.write("Data preprocessing completed!")
-        return X, X_scaled.values, y, scaler
+        return X, X_scaled.values, y
 
 def display_results(predictions, true_labels, scores, algorithm_name, X):
 
@@ -163,7 +163,7 @@ def display_results(predictions, true_labels, scores, algorithm_name, X):
         names = [labels_map.get(k, k) for k in anomaly_counts.index]
         fig_pie = px.pie(values=anomaly_counts.values, names=names,
                          title="Anomaly vs Normal Distribution")
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie)
 
     with col2:
         st.subheader("Anomaly Scores")
@@ -287,7 +287,7 @@ with tab2:
     st.header(f"{algorithm} Analysis")
 
     if st.button(f" Run {algorithm}"):
-        X, X_scaled, y, scaler = preprocess_data(df)
+        X, X_scaled, y = preprocess_data(df)
         if algorithm == 'Isolation Forest':
             predictions, scores = isolation_forest(X, X_scaled, y, n_estimators,contamination)
         elif algorithm == 'Local Outlier Factor':
