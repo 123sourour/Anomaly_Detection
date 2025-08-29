@@ -25,7 +25,7 @@ def load_dataset(dataset_name):
     return df
 
 def data_overview_tab(df):
-    st.subheader("Dataset Overview")
+    st.subheader("📋 Dataset Overview")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -41,7 +41,7 @@ def data_overview_tab(df):
         else:
             st.metric("Anomaly Rate", "Unknown")
 
-    st.subheader("Column Information")
+    st.subheader("📊 Column Information")
     col_info = pd.DataFrame({
         'Column': df.columns,
         'Data Type': df.dtypes,
@@ -51,17 +51,17 @@ def data_overview_tab(df):
     })
     st.dataframe(col_info)
 
-    st.subheader("Data Preview")
+    st.subheader("📈 Data Preview")
     st.dataframe(df.head(10))
 
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     if len(numeric_cols) > 0:
-        st.subheader("Numerical Columns")
+        st.subheader("📊 Numerical Columns")
         st.dataframe(df[numeric_cols].describe())
 
     categorical_cols = df.select_dtypes(include=['object']).columns
     if len(categorical_cols) > 0:
-        st.subheader("Categorical Columns")
+        st.subheader("📝 Categorical Columns")
         for col in categorical_cols:
             with st.expander(f"Values in '{col}'"):
                 value_counts = df[col].value_counts().head(10)
@@ -83,7 +83,7 @@ def data_overview_tab(df):
 
 def preprocess_data(df):
 
-    with st.expander("Data Preprocessing Steps", expanded=False):
+    with st.expander("📋Data Preprocessing Steps", expanded=False):
         st.write("**Step 1:** Checking for missing values:")
         missing_values = df.isnull().sum().sum()
         st.write(f"Missing values found: {missing_values}")
@@ -129,12 +129,12 @@ def preprocess_data(df):
         X_scaled = X.copy()
         X_scaled[numerical_cols] = scaler.fit_transform(X[numerical_cols])
 
-        st.write("Data preprocessing completed!")
+        st.write("✅Data preprocessing completed!")
         return X, X_scaled.values, y
 
 def display_results(predictions, true_labels, scores, algorithm_name, X):
 
-    st.subheader(f"{algorithm_name} Results")
+    st.subheader(f"📊{algorithm_name} Results")
 
     if true_labels is not None:
         col1, col2, col3, col4 = st.columns(4)
@@ -178,7 +178,7 @@ def display_results(predictions, true_labels, scores, algorithm_name, X):
         st.plotly_chart(fig_hist, use_container_width=True)
 
 def isolation_forest(X, X_scaled, y, n_estimators,contamination):
-    with st.spinner("Running Isolation Forest:"):
+    with st.spinner("🔄 Running Isolation Forest:"):
         st.write("**Processing Steps:**")
         st.write("1_Initializing Isolation Forest model")
         model = IsolationForest(
@@ -196,14 +196,14 @@ def isolation_forest(X, X_scaled, y, n_estimators,contamination):
         st.write("4_Converting predictions to binary format")
         predictions_binary = np.where(predictions == -1, 1, 0)
 
-        st.success("Isolation Forest completed!")
+        st.success("✅ Isolation Forest completed!")
 
         display_results(predictions_binary, y, scores, "Isolation Forest", X)
         return predictions_binary, scores
 
 def local_outlier_factor(X, X_scaled, y, n_neighbors,contamination):
 
-    with st.spinner("Running Local Outlier Factor:"):
+    with st.spinner("🔄 Running Local Outlier Factor:"):
         st.write("**Processing Steps:**")
         st.write("1_Initializing LOF model")
         model = LocalOutlierFactor(
@@ -220,14 +220,14 @@ def local_outlier_factor(X, X_scaled, y, n_neighbors,contamination):
         st.write("4_Converting predictions to binary format")
         predictions_binary = np.where(predictions == -1, 1, 0)
 
-        st.success("Local Outlier Factor completed!")
+        st.success("✅ Local Outlier Factor completed!")
 
         display_results(predictions_binary, y, scores, "Local Outlier Factor", X)
         return predictions_binary, scores
 
 def one_class_svm(X, X_scaled, y, nu, kernel, gamma):
 
-    with st.spinner("Running One-Class SVM:"):
+    with st.spinner("🔄 Running One-Class SVM:"):
         st.write("**Processing Steps:**")
         st.write("1_Initializing One-Class SVM model")
         model = OneClassSVM(
@@ -245,28 +245,38 @@ def one_class_svm(X, X_scaled, y, nu, kernel, gamma):
         st.write("4_Converting predictions to binary format")
         predictions_binary = np.where(predictions == -1, 1, 0)
 
-        st.success("One-Class SVM completed!")
+        st.success("✅ One-Class SVM completed!")
 
         display_results(predictions_binary, y, scores, "One-Class SVM", X)
         return predictions_binary, scores
 
 
+
+
 st.set_page_config(
     page_title="Anomaly Detection App",
+    page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-st.title("Anomaly Detection Application")
+col1, col2, col3 = st.columns([1, 6, 1])  # middle column is empty (spacer)
+
+with col1:
+    st.image("versifai_logo.png", width=120)
+
+with col3:
+    st.image("ULFG1.png", width=100)
+st.title("🔍 Anomaly Detection Application")
 st.markdown("**Detect anomalies in your data using advanced machine learning algorithms**")
 
-st.sidebar.header("Configuration")
+st.sidebar.header("⚙️ Configuration")
 dataset_options = ['Credit Card Transactions', 'IoT Sensor Data', 'Network Logs']
-dataset_name = st.sidebar.selectbox("Select Dataset", dataset_options)
+dataset_name = st.sidebar.selectbox("📁 Select Dataset", dataset_options)
 df = load_dataset(dataset_name)
 
 algorithm_options = ['Isolation Forest', 'Local Outlier Factor', 'One-Class SVM']
-algorithm = st.sidebar.selectbox("Select Algorithm", algorithm_options)
-st.sidebar.subheader("Algorithm Parameters")
+algorithm = st.sidebar.selectbox("🤖 Select Algorithm", algorithm_options)
+st.sidebar.subheader("🎛️ Algorithm Parameters")
 if algorithm == 'Isolation Forest':
     n_estimators = st.sidebar.slider("Number of Estimators", 50, 300, 100)
     contamination = st.sidebar.slider("Contamination Rate", 0.01, 0.5, 0.1)
@@ -280,13 +290,13 @@ else:
     kernel = st.sidebar.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid"])
     gamma = st.sidebar.selectbox("Gamma", ['scale', 'auto'])
 
-tab1, tab2, tab3 = st.tabs(["Data Overview", "Anomaly Detection", "Exploratory Analysis"])
+tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "🔍 Anomaly Detection", "📈 Exploratory Analysis"])
 with tab1:
     data_overview_tab(df)
 with tab2:
-    st.header(f"{algorithm} Analysis")
+    st.header(f"🎯{algorithm} Analysis")
 
-    if st.button(f" Run {algorithm}"):
+    if st.button(f"🚀 Run {algorithm}"):
         X, X_scaled, y = preprocess_data(df)
         if algorithm == 'Isolation Forest':
             predictions, scores = isolation_forest(X, X_scaled, y, n_estimators,contamination)
@@ -295,12 +305,12 @@ with tab2:
         else:
             predictions, scores = one_class_svm(X, X_scaled, y, nu, kernel, gamma)
 
-        st.subheader("Analysis Summary")
+        st.subheader("📋 Analysis Summary")
         total_anomalies = np.sum(predictions)
         st.metric("Total Anomalies Detected", int(total_anomalies))
 
 with tab3:
-            st.header("Exploratory Data Analysis")
+            st.header("📈 Exploratory Data Analysis")
 
             if st.checkbox("Show Correlation Matrix"):
                 numeric_df = df.select_dtypes(include=[np.number])
