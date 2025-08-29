@@ -290,18 +290,50 @@ else:
     kernel = st.sidebar.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid"])
     gamma = st.sidebar.selectbox("Gamma", ['scale', 'auto'])
 
-tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "🔍 Anomaly Detection", "📈 Exploratory Analysis"])
+tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "📈 Exploratory Analysis", "🔍 Anomaly Detection"])
 with tab1:
     data_overview_tab(df)
 with tab2:
+    st.header("📈 Exploratory Data Analysis")
+
+    if st.checkbox("Show Correlation Matrix"):
+        numeric_df = df.select_dtypes(include=[np.number])
+        if 'label' in numeric_df.columns:
+            numeric_df = numeric_df.drop('label', axis=1)
+
+        if len(numeric_df.columns) > 0:
+            corr_matrix = numeric_df.corr()
+            fig = px.imshow(corr_matrix, title="Feature Correlation Matrix",
+                            color_continuous_scale="RdBu_r")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No numerical columns available for correlation analysis")
+
+    if st.checkbox("Show Box Plots"):
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if 'label' in numeric_cols:
+            numeric_cols = numeric_cols.drop('label')
+
+        if len(numeric_cols) > 0:
+            cols_to_plot = numeric_cols[:6]
+            st.write(f"Showing box plots for first {len(cols_to_plot)} numerical columns")
+
+            for col in cols_to_plot:
+                fig = px.box(df, y=col, title=f"Box Plot - {col}")
+                if 'label' in df.columns:
+                    fig = px.box(df, y=col, color='label', title=f"Box Plot - {col}")
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No numerical columns available for box plot analysis")
+with tab3:
     st.header(f"🎯{algorithm} Analysis")
 
     if st.button(f"🚀 Run {algorithm}"):
         X, X_scaled, y = preprocess_data(df)
         if algorithm == 'Isolation Forest':
-            predictions, scores = isolation_forest(X, X_scaled, y, n_estimators,contamination)
+            predictions, scores = isolation_forest(X, X_scaled, y, n_estimators, contamination)
         elif algorithm == 'Local Outlier Factor':
-            predictions, scores = local_outlier_factor(X, X_scaled, y, n_neighbors,contamination)
+            predictions, scores = local_outlier_factor(X, X_scaled, y, n_neighbors, contamination)
         else:
             predictions, scores = one_class_svm(X, X_scaled, y, nu, kernel, gamma)
 
@@ -309,35 +341,3 @@ with tab2:
         total_anomalies = np.sum(predictions)
         st.metric("Total Anomalies Detected", int(total_anomalies))
 
-with tab3:
-            st.header("📈 Exploratory Data Analysis")
-
-            if st.checkbox("Show Correlation Matrix"):
-                numeric_df = df.select_dtypes(include=[np.number])
-                if 'label' in numeric_df.columns:
-                    numeric_df = numeric_df.drop('label', axis=1)
-
-                if len(numeric_df.columns) > 0:
-                    corr_matrix = numeric_df.corr()
-                    fig = px.imshow(corr_matrix, title="Feature Correlation Matrix",
-                                    color_continuous_scale="RdBu_r")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No numerical columns available for correlation analysis")
-
-            if st.checkbox("Show Box Plots"):
-                numeric_cols = df.select_dtypes(include=[np.number]).columns
-                if 'label' in numeric_cols:
-                    numeric_cols = numeric_cols.drop('label')
-
-                if len(numeric_cols) > 0:
-                    cols_to_plot = numeric_cols[:6]
-                    st.write(f"Showing box plots for first {len(cols_to_plot)} numerical columns")
-
-                    for col in cols_to_plot:
-                        fig = px.box(df, y=col, title=f"Box Plot - {col}")
-                        if 'label' in df.columns:
-                            fig = px.box(df, y=col, color='label', title=f"Box Plot - {col}")
-                        st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No numerical columns available for box plot analysis")
