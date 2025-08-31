@@ -10,19 +10,54 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.svm import OneClassSVM
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix
+import io
 
-def load_dataset(dataset_name):
+
+def load_dataset(dataset_name, uploaded_file=None):
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            elif uploaded_file.name.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(uploaded_file)
+            else:
+                st.error("Unsupported file format. Please upload a CSV or Excel file.")
+                return None
+
+            st.success(f"✅ Successfully loaded: {uploaded_file.name}")
+            st.info(f"Dataset shape: {df.shape[0]} rows, {df.shape[1]} columns")
+            return df
+
+        except Exception as e:
+            st.error(f"Error loading file: {str(e)}")
+            return None
+
+    # Default datasets
     if dataset_name == "Credit Card Transactions":
-        dataset = pd.read_csv("card_transdata.csv")
-        df=dataset.rename(columns={'fraud': 'label'})
+        try:
+            dataset = pd.read_csv("credit_card_fraud_dataset.csv")
+            df = dataset.rename(columns={'IsFraud': 'label'})
+        except FileNotFoundError:
+            st.error("card_transdata.csv not found. Please upload your own dataset.")
+            return None
 
     elif dataset_name == "IoT Sensor Data":
-        dataset = pd.read_csv("Occupancy.csv")
-        df= dataset.rename(columns={'Occupancy': 'label'})
+        try:
+            dataset = pd.read_csv("Occupancy.csv")
+            df = dataset.rename(columns={'Occupancy': 'label'})
+        except FileNotFoundError:
+            st.error("Occupancy.csv not found. Please upload your own dataset.")
+            return None
     else:
-        dataset = pd.read_csv("cybersecurity_intrusion_data.csv")
-        df= dataset.rename(columns={'attack_detected': 'label'})
+        try:
+            dataset = pd.read_csv("cybersecurity_intrusion_data.csv")
+            df = dataset.rename(columns={'attack_detected': 'label'})
+        except FileNotFoundError:
+            st.error("cybersecurity_intrusion_data.csv not found. Please upload your own dataset.")
+            return None
+
     return df
+
 
 def data_overview_tab(df):
     st.subheader("📋 Dataset Overview")
@@ -81,8 +116,52 @@ def data_overview_tab(df):
                 fig = px.histogram(df, x=col, color='label', title=f"Distribution of {col} by Label")
             st.plotly_chart(fig)
 
-def preprocess_data(df):
 
+def setup_label_column(df):
+    """Helper function to set up the label column for uploaded datasets"""
+    st.subheader("🏷️ Label Column Configuration")
+
+    if 'label' not in df.columns:
+        st.info("No 'label' column found in your dataset.")
+
+        # Check for common label column names
+        potential_labels = [col for col in df.columns if any(keyword in col.lower()
+                                                             for keyword in
+                                                             ['label', 'target', 'class', 'anomaly', 'fraud', 'attack',
+                                                              'outlier'])]
+
+        if potential_labels:
+            st.write("Potential label columns detected:")
+            label_col = st.selectbox("Select the label column:", ['None'] + potential_labels)
+
+            if label_col != 'None':
+                df = df.rename(columns={label_col: 'label'})
+                st.success(f"✅ Column '{label_col}' renamed to 'label'")
+
+                # Show label distribution
+                if df['label'].dtype == 'object':
+                    unique_values = df['label'].unique()
+                    st.write(f"Unique values in label column: {unique_values}")
+
+                    # Ask user to map values to binary (0=normal, 1=anomaly)
+                    st.write("Please map your label values:")
+                    value_mapping = {}
+                    for value in unique_values:
+                        mapped_value = st.selectbox(f"Map '{value}' to:", [0, 1], key=f"map_{value}")
+                        value_mapping[value] = mapped_value
+
+                    if st.button("Apply Label Mapping"):
+                        df['label'] = df['label'].map(value_mapping)
+                        st.success("✅ Label mapping applied successfully!")
+
+        else:
+            st.warning("No potential label columns detected. Running in unsupervised mode.")
+            st.info("You can still use anomaly detection algorithms, but evaluation metrics won't be available.")
+
+    return df
+
+
+def preprocess_data(df):
     with st.expander("📋Data Preprocessing Steps", expanded=False):
         st.write("**Step 1:** Checking for missing values:")
         missing_values = df.isnull().sum().sum()
@@ -132,8 +211,8 @@ def preprocess_data(df):
         st.write("✅Data preprocessing completed!")
         return X, X_scaled.values, y
 
-def display_results(predictions, true_labels, scores, algorithm_name, X):
 
+def display_results(predictions, true_labels, scores, algorithm_name, X):
     st.subheader(f"📊{algorithm_name} Results")
 
     if true_labels is not None:
@@ -177,7 +256,8 @@ def display_results(predictions, true_labels, scores, algorithm_name, X):
             fig_hist.update_layout(title="Anomaly Score Distribution")
         st.plotly_chart(fig_hist, use_container_width=True)
 
-def isolation_forest(X, X_scaled, y, n_estimators,contamination):
+
+def isolation_forest(X, X_scaled, y, n_estimators, contamination):
     with st.spinner("🔄 Running Isolation Forest:"):
         st.write("**Processing Steps:**")
         st.write("1_Initializing Isolation Forest model")
@@ -201,8 +281,8 @@ def isolation_forest(X, X_scaled, y, n_estimators,contamination):
         display_results(predictions_binary, y, scores, "Isolation Forest", X)
         return predictions_binary, scores
 
-def local_outlier_factor(X, X_scaled, y, n_neighbors,contamination):
 
+def local_outlier_factor(X, X_scaled, y, n_neighbors, contamination):
     with st.spinner("🔄 Running Local Outlier Factor:"):
         st.write("**Processing Steps:**")
         st.write("1_Initializing LOF model")
@@ -225,8 +305,8 @@ def local_outlier_factor(X, X_scaled, y, n_neighbors,contamination):
         display_results(predictions_binary, y, scores, "Local Outlier Factor", X)
         return predictions_binary, scores
 
-def one_class_svm(X, X_scaled, y, nu, kernel, gamma):
 
+def one_class_svm(X, X_scaled, y, nu, kernel, gamma):
     with st.spinner("🔄 Running One-Class SVM:"):
         st.write("**Processing Steps:**")
         st.write("1_Initializing One-Class SVM model")
@@ -251,93 +331,139 @@ def one_class_svm(X, X_scaled, y, nu, kernel, gamma):
         return predictions_binary, scores
 
 
-
-
+# Main Streamlit App
 st.set_page_config(
     page_title="Anomaly Detection App",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 col1, col2, col3 = st.columns([1, 6, 1])  # middle column is empty (spacer)
 
 with col1:
-    st.image("versifai_logo.png", width=120)
+    try:
+        st.image("versifai_logo.png", width=120)
+    except:
+        st.write("VersifAI")
 
 with col3:
-    st.image("ULFG1.png", width=100)
+    try:
+        st.image("ULFG1.png", width=100)
+    except:
+        st.write("ULFG")
+
 st.title("🔍 Anomaly Detection Application")
 st.markdown("**Detect anomalies in your data using advanced machine learning algorithms**")
 
+# Sidebar Configuration
 st.sidebar.header("⚙️ Configuration")
-dataset_options = ['Credit Card Transactions', 'IoT Sensor Data', 'Network Logs']
-dataset_name = st.sidebar.selectbox("📁 Select Dataset", dataset_options)
-df = load_dataset(dataset_name)
 
-algorithm_options = ['Isolation Forest', 'Local Outlier Factor', 'One-Class SVM']
-algorithm = st.sidebar.selectbox("🤖 Select Algorithm", algorithm_options)
-st.sidebar.subheader("🎛️ Algorithm Parameters")
-if algorithm == 'Isolation Forest':
-    n_estimators = st.sidebar.slider("Number of Estimators", 50, 300, 100)
-    contamination = st.sidebar.slider("Contamination Rate", 0.01, 0.5, 0.1)
+# File Upload Section
+st.sidebar.subheader("📁 Dataset Selection")
+upload_option = st.sidebar.radio(
+    "Choose data source:",
+    ["Upload your own dataset", "Use sample datasets"]
+)
 
-elif algorithm == 'Local Outlier Factor':
-    n_neighbors = st.sidebar.slider("Number of Neighbors", 5, 50, 20)
-    contamination = st.sidebar.slider("Contamination Rate", 0.01, 0.5, 0.1)
+uploaded_file = None
+df = None
+
+if upload_option == "Upload your own dataset":
+    uploaded_file = st.sidebar.file_uploader(
+        "Choose a file",
+        type=['csv', 'xlsx', 'xls'],
+        help="Upload a CSV or Excel file containing your dataset"
+    )
+
+    if uploaded_file is not None:
+        df = load_dataset(None, uploaded_file)
+        if df is not None:
+            # Setup label column for uploaded datasets
+            df = setup_label_column(df)
+    else:
+        st.sidebar.info("👆 Please upload a dataset to get started")
 
 else:
-    nu = st.sidebar.slider("Nu (outlier fraction)", 0.01, 0.5, 0.1)
-    kernel = st.sidebar.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid"])
-    gamma = st.sidebar.selectbox("Gamma", ['scale', 'auto'])
+    # Sample datasets
+    dataset_options = ['Credit Card Transactions', 'IoT Sensor Data', 'Network Logs']
+    dataset_name = st.sidebar.selectbox("📁 Select Sample Dataset", dataset_options)
+    df = load_dataset(dataset_name)
 
-tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "📈 Exploratory Analysis", "🔍 Anomaly Detection"])
-with tab1:
-    data_overview_tab(df)
-with tab2:
-    st.header("📈 Exploratory Data Analysis")
+# Only show algorithm selection if we have a dataset
+if df is not None:
+    algorithm_options = ['Isolation Forest', 'Local Outlier Factor', 'One-Class SVM']
+    algorithm = st.sidebar.selectbox("🤖 Select Algorithm", algorithm_options)
 
-    if st.checkbox("Show Correlation Matrix"):
-        numeric_df = df.select_dtypes(include=[np.number])
-        if 'label' in numeric_df.columns:
-            numeric_df = numeric_df.drop('label', axis=1)
+    st.sidebar.subheader("🎛️ Algorithm Parameters")
+    if algorithm == 'Isolation Forest':
+        n_estimators = st.sidebar.slider("Number of Estimators", 50, 300, 100)
+        contamination = st.sidebar.slider("Contamination Rate", 0.01, 0.5, 0.1)
 
-        if len(numeric_df.columns) > 0:
-            corr_matrix = numeric_df.corr()
-            fig = px.imshow(corr_matrix, title="Feature Correlation Matrix",
-                            color_continuous_scale="RdBu_r")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("No numerical columns available for correlation analysis")
+    elif algorithm == 'Local Outlier Factor':
+        n_neighbors = st.sidebar.slider("Number of Neighbors", 5, 50, 20)
+        contamination = st.sidebar.slider("Contamination Rate", 0.01, 0.5, 0.1)
 
-    if st.checkbox("Show Box Plots"):
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        if 'label' in numeric_cols:
-            numeric_cols = numeric_cols.drop('label')
+    else:
+        nu = st.sidebar.slider("Nu (outlier fraction)", 0.01, 0.5, 0.1)
+        kernel = st.sidebar.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid"])
+        gamma = st.sidebar.selectbox("Gamma", ['scale', 'auto'])
 
-        if len(numeric_cols) > 0:
-            cols_to_plot = numeric_cols[:6]
-            st.write(f"Showing box plots for first {len(cols_to_plot)} numerical columns")
+    # Main content tabs
+    tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "📈 Exploratory Analysis", "🔍 Anomaly Detection"])
 
-            for col in cols_to_plot:
-                fig = px.box(df, y=col, title=f"Box Plot - {col}")
-                if 'label' in df.columns:
-                    fig = px.box(df, y=col, color='label', title=f"Box Plot - {col}")
+    with tab1:
+        data_overview_tab(df)
+
+    with tab2:
+        st.header("📈 Exploratory Data Analysis")
+
+        if st.checkbox("Show Correlation Matrix"):
+            numeric_df = df.select_dtypes(include=[np.number])
+            if 'label' in numeric_df.columns:
+                numeric_df = numeric_df.drop('label', axis=1)
+
+            if len(numeric_df.columns) > 0:
+                corr_matrix = numeric_df.corr()
+                fig = px.imshow(corr_matrix, title="Feature Correlation Matrix",
+                                color_continuous_scale="RdBu_r")
                 st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("No numerical columns available for box plot analysis")
-with tab3:
-    st.header(f"🎯{algorithm} Analysis")
+            else:
+                st.warning("No numerical columns available for correlation analysis")
 
-    if st.button(f"🚀 Run {algorithm}"):
-        X, X_scaled, y = preprocess_data(df)
-        if algorithm == 'Isolation Forest':
-            predictions, scores = isolation_forest(X, X_scaled, y, n_estimators, contamination)
-        elif algorithm == 'Local Outlier Factor':
-            predictions, scores = local_outlier_factor(X, X_scaled, y, n_neighbors, contamination)
-        else:
-            predictions, scores = one_class_svm(X, X_scaled, y, nu, kernel, gamma)
+        if st.checkbox("Show Box Plots"):
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            if 'label' in numeric_cols:
+                numeric_cols = numeric_cols.drop('label')
 
-        st.subheader("📋 Analysis Summary")
-        total_anomalies = np.sum(predictions)
-        st.metric("Total Anomalies Detected", int(total_anomalies))
+            if len(numeric_cols) > 0:
+                cols_to_plot = numeric_cols[:6]
+                st.write(f"Showing box plots for first {len(cols_to_plot)} numerical columns")
 
+                for col in cols_to_plot:
+                    fig = px.box(df, y=col, title=f"Box Plot - {col}")
+                    if 'label' in df.columns:
+                        fig = px.box(df, y=col, color='label', title=f"Box Plot - {col}")
+                    st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No numerical columns available for box plot analysis")
+
+    with tab3:
+        st.header(f"🎯{algorithm} Analysis")
+
+        if st.button(f"🚀 Run {algorithm}"):
+            X, X_scaled, y = preprocess_data(df)
+            if algorithm == 'Isolation Forest':
+                predictions, scores = isolation_forest(X, X_scaled, y, n_estimators, contamination)
+            elif algorithm == 'Local Outlier Factor':
+                predictions, scores = local_outlier_factor(X, X_scaled, y, n_neighbors, contamination)
+            else:
+                predictions, scores = one_class_svm(X, X_scaled, y, nu, kernel, gamma)
+
+            st.subheader("📋 Analysis Summary")
+            total_anomalies = np.sum(predictions)
+            st.metric("Total Anomalies Detected", int(total_anomalies))
+
+else:
+    # Show instructions when no dataset is loaded
+    st.info("👈 Please select or upload a dataset from the sidebar to get started")
