@@ -3,5 +3,5 @@ plotly
 numpy
 matplotlib
 pandas
-io
 scikit-learn
+
