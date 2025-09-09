@@ -118,47 +118,131 @@ def data_overview_tab(df):
 
 
 def setup_label_column(df):
-    """Helper function to set up the label column for uploaded datasets"""
-    st.subheader("🏷️ Label Column Configuration")
+    """Enhanced function to set up the label column with clear supervised/unsupervised choice"""
+    st.subheader("🏷️ Analysis Mode Selection")
 
-    if 'label' not in df.columns:
-        st.info("No 'label' column found in your dataset.")
+    # Let user choose between supervised and unsupervised
+    analysis_mode = st.radio(
+        "Choose your analysis mode:",
+        options=["🎯 Supervised (with labels)", "🔍 Unsupervised (no labels)"],
+        help="Supervised mode evaluates performance against known labels. Unsupervised mode only detects patterns."
+    )
 
-        # Check for common label column names
-        potential_labels = [col for col in df.columns if any(keyword in col.lower()
-                                                             for keyword in
-                                                             ['label', 'target', 'class', 'anomaly', 'fraud', 'attack',
-                                                              'outlier'])]
+    if analysis_mode == "🎯 Supervised (with labels)":
+        st.info("📝 In supervised mode, you can evaluate the performance of anomaly detection algorithms.")
 
-        if potential_labels:
-            st.write("Potential label columns detected:")
-            label_col = st.selectbox("Select the label column:", ['None'] + potential_labels)
+        # Option 1: Use last column as label
+        last_col = df.columns[-1]
+        use_last_col = st.checkbox(
+            f"✅ Use last column '{last_col}' as label column",
+            value=True,
+            help=f"The last column '{last_col}' will be treated as the target label"
+        )
 
-            if label_col != 'None':
-                df = df.rename(columns={label_col: 'label'})
-                st.success(f"✅ Column '{label_col}' renamed to 'label'")
+        if use_last_col:
+            df_processed = df.rename(columns={last_col: 'label'})
+            st.success(f"✅ Column '{last_col}' set as label column")
 
-                # Show label distribution
-                if df['label'].dtype == 'object':
-                    unique_values = df['label'].unique()
-                    st.write(f"Unique values in label column: {unique_values}")
+            # Show label information and handle mapping if needed
+            label_col = df_processed['label']
+            unique_values = label_col.unique()
+            st.write(f"**Label column info:**")
+            st.write(f"- Unique values: {list(unique_values)}")
+            st.write(f"- Data type: {label_col.dtype}")
 
-                    # Ask user to map values to binary (0=normal, 1=anomaly)
-                    st.write("Please map your label values:")
+            # Handle label mapping for non-binary labels
+            if len(unique_values) > 2 or not set(unique_values).issubset({0, 1}):
+                st.warning("⚠️ Label mapping required: Labels should be binary (0=Normal, 1=Anomaly)")
+
+                with st.expander("🔄 Configure Label Mapping", expanded=True):
+                    st.write("Map your label values to binary format:")
                     value_mapping = {}
-                    for value in unique_values:
-                        mapped_value = st.selectbox(f"Map '{value}' to:", [0, 1], key=f"map_{value}")
-                        value_mapping[value] = mapped_value
 
-                    if st.button("Apply Label Mapping"):
-                        df['label'] = df['label'].map(value_mapping)
+                    for i, value in enumerate(unique_values):
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            st.write(f"**'{value}'** →")
+                        with col2:
+                            mapped_value = st.selectbox(
+                                f"Map to:",
+                                options=[0, 1],
+                                format_func=lambda x: "Normal" if x == 0 else "Anomaly",
+                                key=f"map_{i}_{value}"
+                            )
+                            value_mapping[value] = mapped_value
+
+                    if st.button("🔄 Apply Label Mapping"):
+                        df_processed['label'] = df_processed['label'].map(value_mapping)
                         st.success("✅ Label mapping applied successfully!")
 
-        else:
-            st.warning("No potential label columns detected. Running in unsupervised mode.")
-            st.info("You can still use anomaly detection algorithms, but evaluation metrics won't be available.")
+                        # Show updated distribution
+                        label_dist = df_processed['label'].value_counts()
+                        st.write("**Updated label distribution:**")
+                        st.write(f"- Normal (0): {label_dist.get(0, 0)} samples")
+                        st.write(f"- Anomaly (1): {label_dist.get(1, 0)} samples")
 
-    return df
+            else:
+                # Labels are already binary
+                label_dist = label_col.value_counts()
+                st.success("✅ Labels are already in binary format")
+                st.write("**Label distribution:**")
+                st.write(f"- Normal (0): {label_dist.get(0, 0)} samples")
+                st.write(f"- Anomaly (1): {label_dist.get(1, 0)} samples")
+                df_processed = df.rename(columns={last_col: 'label'})
+
+        else:
+            # Option 2: Select any column as label
+            st.write("**Or select a different column as label:**")
+
+            # Check for potential label columns
+            potential_labels = [col for col in df.columns if any(keyword in col.lower()
+                                                                 for keyword in
+                                                                 ['label', 'target', 'class', 'anomaly', 'fraud',
+                                                                  'attack', 'outlier'])]
+
+            if potential_labels:
+                st.write("💡 **Suggested columns** (contain label-related keywords):")
+                for col in potential_labels:
+                    st.write(f"- {col}")
+
+            label_col_choice = st.selectbox(
+                "Choose label column:",
+                options=['None'] + list(df.columns),
+                help="Select which column contains the target labels"
+            )
+
+            if label_col_choice != 'None':
+                df_processed = df.rename(columns={label_col_choice: 'label'})
+                st.success(f"✅ Column '{label_col_choice}' set as label column")
+
+                # Handle label mapping similar to above
+                label_col = df_processed['label']
+                unique_values = label_col.unique()
+
+                if len(unique_values) > 2 or not set(unique_values).issubset({0, 1}):
+                    st.warning("⚠️ Label mapping required")
+                    # Add mapping logic here (similar to above)
+
+                else:
+                    label_dist = label_col.value_counts()
+                    st.write("**Label distribution:**")
+                    st.write(f"- Normal (0): {label_dist.get(0, 0)} samples")
+                    st.write(f"- Anomaly (1): {label_dist.get(1, 0)} samples")
+            else:
+                st.warning("⚠️ Please select a label column for supervised analysis")
+                df_processed = df.copy()
+
+    else:
+        # Unsupervised mode
+        st.info("🔍 In unsupervised mode, algorithms will detect anomalies based on data patterns only.")
+        st.warning("⚠️ Performance metrics will not be available without ground truth labels.")
+        df_processed = df.copy()
+
+        # Remove any existing label column to avoid confusion
+        if 'label' in df_processed.columns:
+            df_processed = df_processed.drop('label', axis=1)
+
+    return df_processed
 
 
 def preprocess_data(df):
@@ -233,6 +317,8 @@ def display_results(predictions, true_labels, scores, algorithm_name, X):
                            title="Confusion Matrix",
                            color_continuous_scale="Blues")
         st.plotly_chart(fig_cm)
+    else:
+        st.info("📝 Performance metrics not available in unsupervised mode")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -379,7 +465,7 @@ if upload_option == "Upload your own dataset":
     if uploaded_file is not None:
         df = load_dataset(None, uploaded_file)
         if df is not None:
-            # Setup label column for uploaded datasets
+            # Setup label column for uploaded datasets with new enhanced function
             df = setup_label_column(df)
     else:
         st.sidebar.info("👆 Please upload a dataset to get started")
